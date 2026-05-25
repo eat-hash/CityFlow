@@ -1,4 +1,4 @@
-package web.backend.entity;
+package backend.entity;
 
 public class Intersection {
     private String intersectionId;

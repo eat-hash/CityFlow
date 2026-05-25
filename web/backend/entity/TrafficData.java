@@ -1,4 +1,4 @@
-package web.backend.entity;
+package backend.entity;
 import java.util.Date;
 
 public class TrafficData {
