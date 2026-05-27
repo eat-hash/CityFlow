@@ -1,33 +1,24 @@
 package backend.util;
 
-import com.alibaba.excel.EasyExcel;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.net.URLEncoder;
+import java.io.PrintWriter;
 import java.util.List;
 
 public class ExportUtil {
 
     /**
-     * 通用Excel导出（适配配时方案、统计数据等）
-     * @param response 响应
-     * @param data 数据列表
-     * @param headClazz 表头实体
-     * @param fileName 文件名（不含后缀）
-     * @param sheetName sheet名
+     * 导出CSV（兼容所有容器，无需额外依赖）
      */
-    public static void exportExcel(HttpServletResponse response,
-                                   List<?> data,
-                                   Class<?> headClazz,
-                                   String fileName,
-                                   String sheetName) throws IOException {
-        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        response.setCharacterEncoding("UTF-8");
-        String encodedName = URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
-        response.setHeader("Content-Disposition", "attachment;filename*=utf-8''" + encodedName + ".xlsx");
-
-        EasyExcel.write(response.getOutputStream(), headClazz)
-                .sheet(sheetName)
-                .doWrite(data);
+    public static void exportCsv(HttpServletResponse response,
+                                 List<String[]> data,
+                                 String fileName) throws Exception {
+        response.setContentType("text/csv;charset=utf-8");
+        response.setHeader("Content-Disposition", "attachment;filename=" + fileName + ".csv");
+        PrintWriter out = response.getWriter();
+        for (String[] row : data) {
+            out.println(String.join(",", row));
+        }
+        out.flush();
+        out.close();
     }
 }

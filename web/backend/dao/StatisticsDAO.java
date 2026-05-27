@@ -3,50 +3,33 @@ package backend.dao;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
+import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Map;
 
 @Repository
 public class StatisticsDAO {
 
-    @Resource
-    private JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
-    /**
-     * 全局统计：路口总数、配时方案总数、在线设备数、今日通行量
-     */
-    public Map<String, Object> getGlobalStatistics() {
+    public StatisticsDAO(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
+
+    // 全局统计：方案总数、启用数、路口数
+    public Map<String, Object> getGlobalStats() {
         Map<String, Object> map = new HashMap<>();
-        // 路口总数
-        map.put("intersectionCount", count("intersection", null, null));
-        // 配时方案总数
-        map.put("timingPlanCount", count("timing_plan", null, null));
-        // 在线设备（status=1）
-        map.put("deviceOnlineCount", count("device", "status=1", null));
-        // 今日通行量
-        map.put("todayPassCount", count("traffic_record", "DATE(create_time)=CURDATE()", null));
+
+        // 方案总数
+        Long totalPlan = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM timing_plan", Long.class);
+        // 启用方案数
+        Long activePlan = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM timing_plan WHERE status=1", Long.class);
+        // 关联路口数（去重）
+        Long totalIntersection = jdbcTemplate.queryForObject("SELECT COUNT(DISTINCT intersection_id) FROM timing_plan", Long.class);
+
+        map.put("totalPlan", totalPlan);
+        map.put("activePlan", activePlan);
+        map.put("totalIntersection", totalIntersection);
         return map;
-    }
-
-    /**
-     * 时间段通行量统计（用于报表）
-     */
-    public int getTrafficCountBetween(String start, String end) {
-        return count("traffic_record", "create_time BETWEEN ? AND ?", new Object[]{start, end});
-    }
-
-    // 通用count：只COUNT(id)，不走全表
-    private int count(String table, String where, Object[] args) {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(id) FROM ").append(table);
-        if (where != null && !where.isEmpty()) {
-            sql.append(" WHERE ").append(where);
-        }
-        try {
-            Integer val = jdbcTemplate.queryForObject(sql.toString(), args, Integer.class);
-            return val == null ? 0 : val;
-        } catch (Exception e) {
-            return 0;
-        }
     }
 }
