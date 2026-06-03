@@ -15,9 +15,13 @@ public class AlgorithmTest {
 
         System.out.println("\n===== 测试4：异常输入（参数非法） =====");
         invalidParamTest(service);
+
+        // ==================== 第三周新增：性能测试（10路口测速） ====================
+        System.out.println("\n===== 测试5：10路口性能测试（第三周要求） =====");
+        performanceTest(service);
     }
 
-    // 正常单路口测试
+    // 正常单路口测试（原样保留）
     private static void normalTest(AlgorithmService service) {
         Map<String, Integer> flow = new HashMap<>();
         flow.put("EAST_WEST_STRAIGHT", 420);
@@ -31,7 +35,7 @@ public class AlgorithmTest {
         printResult(out);
     }
 
-    // 批量测试
+    // 批量测试（原样保留）
     private static void batchTest(AlgorithmService service) {
         List<AlgorithmInput> inputs = new ArrayList<>();
         for (int i = 1; i <= 3; i++) {
@@ -50,7 +54,7 @@ public class AlgorithmTest {
         }
     }
 
-    // 流量为0的异常测试
+    // 流量为0的异常测试（原样保留）
     private static void zeroFlowTest(AlgorithmService service) {
         Map<String, Integer> flow = new HashMap<>();
         flow.put("EAST_WEST_STRAIGHT", 0);
@@ -63,18 +67,43 @@ public class AlgorithmTest {
         printResult(out);
     }
 
-    // 参数非法测试（最大周期过小）
+    // 参数非法测试（原样保留）
     private static void invalidParamTest(AlgorithmService service) {
         Map<String, Integer> flow = new HashMap<>();
         flow.put("EAST_WEST_STRAIGHT", 420);
         flow.put("EAST_WEST_LEFT", 130);
 
-        // 最大周期设为30，无法满足4个相位的最小绿灯
         AlgorithmInput input = new AlgorithmInput("test_003", flow, 15, 30);
         AlgorithmOutput out = service.optimizeSingle(input);
         printResult(out);
     }
 
+    // ==================== 第三周新增：10路口性能测速 ====================
+    private static void performanceTest(AlgorithmService service) {
+        // 构造10个路口
+        List<AlgorithmInput> inputList = new ArrayList<>();
+        Map<String, Integer> flow = new HashMap<>();
+        flow.put("EAST_WEST_STRAIGHT", 420);
+        flow.put("EAST_WEST_LEFT", 130);
+        flow.put("NORTH_SOUTH_STRAIGHT", 550);
+        flow.put("NORTH_SOUTH_LEFT", 100);
+
+        for (int i = 1; i <= 10; i++) {
+            inputList.add(new AlgorithmInput("intersection_" + i, flow, 15, 120));
+        }
+
+        // 计时开始
+        long start = System.currentTimeMillis();
+        List<AlgorithmOutput> result = service.optimizeBatch(inputList);
+        long cost = System.currentTimeMillis() - start;
+
+        System.out.println("✅ 10个路口批量计算完成");
+        System.out.println("✅ 耗时：" + cost + " ms");
+        System.out.println("✅ 是否达标（<1000ms）：" + (cost < 1000));
+        System.out.println("------------------------");
+    }
+
+    // 打印结果（原样保留）
     private static void printResult(AlgorithmOutput out) {
         System.out.println("状态：" + out.getStatus());
         System.out.println("路口ID：" + out.getIntersectionId());
