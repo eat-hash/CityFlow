@@ -8,7 +8,9 @@ public class TrafficSignalOptimizer {
             "NORTH_SOUTH_LEFT"
     };
 
-    // ====================== 新版：符合作业要求 ======================
+    // ====================== 性能优化：全局只创建一次 Random ======================
+    private static final Random RANDOM = new Random();
+
     public AlgorithmOutput computeTimingPlan(AlgorithmInput input) {
         try {
             String intersectionId = input.getIntersectionId();
@@ -41,9 +43,9 @@ public class TrafficSignalOptimizer {
             int yellow = 3;
             int cycle = totalGreen + PHASES.length * yellow;
 
-            Random r = new Random();
-            double delay = 15 + r.nextDouble() * 20;
-            double capacity = 80 + r.nextDouble() * 15;
+            // ====================== 直接复用全局 RANDOM，不再每次 new ======================
+            double delay = 15 + RANDOM.nextDouble() * 20;
+            double capacity = 80 + RANDOM.nextDouble() * 15;
 
             return new AlgorithmOutput(
                     intersectionId,
@@ -59,17 +61,14 @@ public class TrafficSignalOptimizer {
         }
     }
 
-    // ====================== 新版批量接口 ======================
     public List<AlgorithmOutput> batchOptimize(List<AlgorithmInput> inputs) {
         List<AlgorithmOutput> results = new ArrayList<>();
         for (AlgorithmInput input : inputs) {
-            AlgorithmOutput output = computeTimingPlan(input);
-            results.add(output);
+            results.add(computeTimingPlan(input));
         }
         return results;
     }
 
-    // ====================== 新版 main ======================
     public static void main(String[] args) throws Exception {
         TrafficSignalOptimizer opt = new TrafficSignalOptimizer();
         JSONDataLoader loader = new JSONDataLoader();
@@ -84,7 +83,6 @@ public class TrafficSignalOptimizer {
         };
         Map<String, Integer> roadFlow = loader.loadCombinedFlow(anons);
 
-        // 构建批量输入
         List<AlgorithmInput> inputList = new ArrayList<>();
         List<String> testIds = interIds.size() >= 3 ? interIds.subList(0, 3) : interIds;
 
@@ -99,10 +97,8 @@ public class TrafficSignalOptimizer {
             inputList.add(input);
         }
 
-        // 调用批量优化
         List<AlgorithmOutput> results = opt.batchOptimize(inputList);
 
-        // 输出结果
         System.out.println("===== 杭州真实路口优化结果 =====");
         for (AlgorithmOutput out : results) {
             System.out.println("路口ID：" + out.getIntersectionId());
