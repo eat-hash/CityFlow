@@ -1,67 +1,104 @@
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class AlgorithmService {
     private final TrafficSignalOptimizer optimizer;
-    // 第三周新增：批量优化实例，剥离循环逻辑
     private final BatchOptimizer batchOptimizer;
 
-    // 构造方法初始化优化器、批量处理器
     public AlgorithmService() {
         this.optimizer = new TrafficSignalOptimizer();
-        this.batchOptimizer = new BatchOptimizer();
+        this.batchOptimizer = new BatchOptimizer(optimizer);
     }
 
-    // 单路口优化接口（原有代码完全不变）
-    public AlgorithmOutput optimizeSingle(AlgorithmInput input) {
-        // 前置校验：非法输入检查
-        if (input == null) {
-            return AlgorithmOutput.error("输入参数不能为空");
-        }
-        if (input.getPhaseFlow() == null || input.getPhaseFlow().isEmpty()) {
-            return AlgorithmOutput.error("相位流量数据不能为空");
-        }
-        if (input.getMinGreen() <= 0 || input.getMaxCycle() <= 0) {
-            return AlgorithmOutput.error("最小绿灯/最大周期必须大于0");
-        }
-        if (input.getMaxCycle() - 12 < input.getMinGreen() * 4) {
-            return AlgorithmOutput.error("最大周期过小，无法满足最小绿灯时长");
-        }
+    // ===================== 1. 获取测试数据接口 =====================
+    public Result<List<AlgorithmInput>> getTestData() {
+        List<AlgorithmInput> dataList = new ArrayList<>();
+        // 构造几个样例
+        Map<String, Integer> flow1 = new LinkedHashMap<>();
+        flow1.put(AlgorithmInput.PHASE_EW_STRAIGHT, 420);
+        flow1.put(AlgorithmInput.PHASE_EW_LEFT, 130);
+        flow1.put(AlgorithmInput.PHASE_NS_STRAIGHT, 550);
+        flow1.put(AlgorithmInput.PHASE_NS_LEFT, 100);
+        dataList.add(new AlgorithmInput("test_001", flow1, 15, 120));
 
-        // 调用核心算法
+        Map<String, Integer> flow2 = new LinkedHashMap<>();
+        flow2.put(AlgorithmInput.PHASE_EW_STRAIGHT, 450);
+        flow2.put(AlgorithmInput.PHASE_EW_LEFT, 120);
+        flow2.put(AlgorithmInput.PHASE_NS_STRAIGHT, 530);
+        flow2.put(AlgorithmInput.PHASE_NS_LEFT, 100);
+        dataList.add(new AlgorithmInput("batch_1", flow2, 15, 120));
+
+        Map<String, Integer> flow3 = new LinkedHashMap<>();
+        flow3.put(AlgorithmInput.PHASE_EW_STRAIGHT, 500);
+        flow3.put(AlgorithmInput.PHASE_EW_LEFT, 140);
+        flow3.put(AlgorithmInput.PHASE_NS_STRAIGHT, 560);
+        flow3.put(AlgorithmInput.PHASE_NS_LEFT, 100);
+        dataList.add(new AlgorithmInput("batch_2", flow3, 15, 120));
+
+        Map<String, Integer> flow4 = new LinkedHashMap<>();
+        flow4.put(AlgorithmInput.PHASE_EW_STRAIGHT, 550);
+        flow4.put(AlgorithmInput.PHASE_EW_LEFT, 160);
+        flow4.put(AlgorithmInput.PHASE_NS_STRAIGHT, 590);
+        flow4.put(AlgorithmInput.PHASE_NS_LEFT, 100);
+        dataList.add(new AlgorithmInput("batch_3", flow4, 15, 120));
+
+        Map<String, Integer> flow5 = new LinkedHashMap<>();
+        flow5.put(AlgorithmInput.PHASE_EW_STRAIGHT, 0);
+        flow5.put(AlgorithmInput.PHASE_EW_LEFT, 0);
+        flow5.put(AlgorithmInput.PHASE_NS_STRAIGHT, 0);
+        flow5.put(AlgorithmInput.PHASE_NS_LEFT, 0);
+        dataList.add(new AlgorithmInput("test_002", flow5, 15, 120));
+
+        return Result.success(dataList);
+    }
+
+    // ===================== 2. 单路口优化接口 =====================
+    public Result<AlgorithmOutput> singleOptimize(AlgorithmInput input) {
         try {
-            return optimizer.computeTimingPlan(input);
+            AlgorithmOutput output = optimizer.computeTimingPlan(input);
+            return Result.success(output);
+        } catch (RuntimeException e) {
+            return Result.fail(400, e.getMessage());
         } catch (Exception e) {
-            return AlgorithmOutput.error("计算失败：" + e.getMessage());
+            return Result.fail(500, "服务内部异常");
         }
     }
 
-    // 批量路口优化：改用BatchOptimizer实现
-    public List<AlgorithmOutput> optimizeBatch(List<AlgorithmInput> inputs) {
-        if (inputs == null || inputs.isEmpty()) {
-            throw new IllegalArgumentException("批量输入列表不能为空");
+    // ===================== 3. 批量优化接口（兼容当前 BatchOptRequest）=====================
+    public Result<List<AlgorithmOutput>> batchOptimize(BatchOptRequest request) {
+        try {
+            // 校验入参
+            if (request.getIntersectionIds() == null || request.getIntersectionIds().isEmpty()) {
+                return Result.fail(400, "路口ID列表不能为空");
+            }
+            if (request.getBasePhaseFlow() == null) {
+                return Result.fail(400, "基础相位流量不能为空");
+            }
+
+            List<AlgorithmInput> inputList = new ArrayList<>();
+            List<String> ids = request.getIntersectionIds();
+            Map<String, Integer> baseFlow = request.getBasePhaseFlow();
+            int minG = request.getMinGreen();
+            int maxC = request.getMaxCycle();
+
+            // 为每个路口复制一份基础流量（和当前前端接口兼容）
+            for (String id : ids) {
+                inputList.add(new AlgorithmInput(id, new LinkedHashMap<>(baseFlow), minG, maxC));
+            }
+
+            List<AlgorithmOutput> outputList = batchOptimizer.batchOptimize(inputList);
+            return Result.success(outputList);
+        } catch (RuntimeException e) {
+            return Result.fail(400, e.getMessage());
+        } catch (Exception e) {
+            return Result.fail(500, "批量计算服务异常");
         }
-        return batchOptimizer.batchOptimize(inputs);
     }
 
-    // ==================== 【第三周新增重载接口 原样保留】 ====================
-    public AlgorithmOutput optimizeSingle(String intersectionId,
-                                          Map<String, Integer> phaseFlow,
-                                          int minGreen,
-                                          int maxCycle) {
-        AlgorithmInput input = new AlgorithmInput(intersectionId, phaseFlow, minGreen, maxCycle);
-        return optimizeSingle(input);
-    }
-
-    public List<AlgorithmOutput> optimizeBatch(List<String> intersectionIds,
-                                               Map<String, Integer> baseFlow,
-                                               int minGreen,
-                                               int maxCycle) {
-        List<AlgorithmInput> inputList = new ArrayList<>();
-        for (String id : intersectionIds) {
-            inputList.add(new AlgorithmInput(id, baseFlow, minGreen, maxCycle));
-        }
-        return optimizeBatch(inputList);
+    // 关闭线程池
+    public void shutdown() {
+        batchOptimizer.shutdown();
     }
 }
