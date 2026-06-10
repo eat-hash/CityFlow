@@ -1,112 +1,100 @@
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class TrafficSignalOptimizer {
-    private static final String[] PHASES = {
-            "EAST_WEST_STRAIGHT",
-            "EAST_WEST_LEFT",
-            "NORTH_SOUTH_STRAIGHT",
-            "NORTH_SOUTH_LEFT"
-    };
+    // 相位列表（中文，与前端完全一致）
+    private static final List<String> PHASES = Collections.unmodifiableList(
+            Arrays.asList(
+                    AlgorithmInput.PHASE_EW_STRAIGHT,
+                    AlgorithmInput.PHASE_EW_LEFT,
+                    AlgorithmInput.PHASE_NS_STRAIGHT,
+                    AlgorithmInput.PHASE_NS_LEFT
+            )
+    );
 
-    // ====================== 性能优化：全局只创建一次 Random ======================
-    private static final Random RANDOM = new Random();
+    // 算法常量
+    private static final int YELLOW_TIME = 3;
+    private static final double SATURATION_FLOW = 1800;
+    private static final int LOST_TIME_PER_PHASE = 2;
+    private static final double MAX_FLOW_RATIO = 0.95;
 
     public AlgorithmOutput computeTimingPlan(AlgorithmInput input) {
-        try {
-            String intersectionId = input.getIntersectionId();
-            Map<String, Integer> phaseFlow = input.getPhaseFlow();
-            int minGreen = input.getMinGreen();
-            int maxCycle = input.getMaxCycle();
+        String intersectionId = input.getIntersectionId();
+        Map<String, Integer> phaseFlow = input.getPhaseFlow();
+        int minGreen = input.getMinGreen();
+        int maxCycle = input.getMaxCycle();
 
-            double totalFlow = 0;
-            for (String p : PHASES) {
-                totalFlow += phaseFlow.getOrDefault(p, 0);
-            }
-            if (totalFlow <= 0) totalFlow = 1;
+        // 总损失时间
+        int totalLostTime = PHASES.size() * LOST_TIME_PER_PHASE;
 
-            Map<String, Integer> greenTime = new HashMap<>();
-            for (String p : PHASES) {
-                double flow = phaseFlow.getOrDefault(p, 0);
-                int gt = (int) (flow / totalFlow * (maxCycle - 12));
+        // 计算各相位流量比
+        Map<String, Double> flowRatio = new LinkedHashMap<>();
+        double totalY = 0.0;
+        for (String phase : PHASES) {
+            int flow = phaseFlow.getOrDefault(phase, 0);
+            double y = flow / SATURATION_FLOW;
+            y = Math.min(y, MAX_FLOW_RATIO);
+            flowRatio.put(phase, y);
+            totalY += y;
+        }
+
+        // 全流量为0，直接抛出业务异常
+        if (totalY <= 0) {
+            throw new RuntimeException("所有相位流量为0，无法计算配时");
+        }
+
+        // Webster 最佳周期
+        double optimalCycle = (1.5 * totalLostTime + 5) / (1 - totalY);
+        int minCycle = minGreen * PHASES.size() + PHASES.size() * YELLOW_TIME + totalLostTime;
+        int cycle = (int) Math.round(Math.max(minCycle, Math.min(optimalCycle, maxCycle)));
+
+        // 有效绿灯时间
+        int totalYellowTime = PHASES.size() * YELLOW_TIME;
+        int effectiveGreen = cycle - totalLostTime - totalYellowTime;
+        effectiveGreen = Math.max(effectiveGreen, minGreen * PHASES.size());
+
+        // 分配绿灯时长
+        Map<String, Integer> timingPlan = new LinkedHashMap<>();
+        int totalGreen = 0;
+        for (String phase : PHASES) {
+            double y = flowRatio.get(phase);
+            int gt = (int) Math.round((y / totalY) * effectiveGreen);
+            gt = Math.max(gt, minGreen);
+            timingPlan.put(phase, gt);
+            totalGreen += gt;
+        }
+
+        // 校准总绿灯时长
+        if (totalGreen > effectiveGreen) {
+            double scale = effectiveGreen * 1.0 / totalGreen;
+            for (String phase : PHASES) {
+                int gt = (int) Math.round(timingPlan.get(phase) * scale);
                 gt = Math.max(gt, minGreen);
-                greenTime.put(p, gt);
+                timingPlan.put(phase, gt);
             }
+        }
 
-            int totalGreen = greenTime.values().stream().mapToInt(Integer::intValue).sum();
-            if (totalGreen > maxCycle - 12) {
-                double scale = (maxCycle - 12.0) / totalGreen;
-                for (String p : PHASES) {
-                    greenTime.put(p, (int) (greenTime.get(p) * scale));
-                }
+        // 计算延误
+        double delay = 0.0;
+        if (totalY < 1) {
+            double numerator = 0.5 * cycle * Math.pow(1 - totalY, 2);
+            double denominator = 1 - totalY * (cycle / optimalCycle);
+            if (denominator > 0) {
+                delay = numerator / denominator;
             }
-
-            int yellow = 3;
-            int cycle = totalGreen + PHASES.length * yellow;
-
-            // ====================== 直接复用全局 RANDOM，不再每次 new ======================
-            double delay = 15 + RANDOM.nextDouble() * 20;
-            double capacity = 80 + RANDOM.nextDouble() * 15;
-
-            return new AlgorithmOutput(
-                    intersectionId,
-                    cycle,
-                    yellow,
-                    greenTime,
-                    Math.round(delay * 100) / 100.0,
-                    Math.round(capacity * 100) / 100.0
-            );
-
-        } catch (Exception e) {
-            return AlgorithmOutput.error(e.getMessage());
         }
-    }
+        delay = Math.max(0, 8.0 + delay);
+        delay = Math.round(delay * 100) / 100.0;
 
-    public List<AlgorithmOutput> batchOptimize(List<AlgorithmInput> inputs) {
-        List<AlgorithmOutput> results = new ArrayList<>();
-        for (AlgorithmInput input : inputs) {
-            results.add(computeTimingPlan(input));
-        }
-        return results;
-    }
+        // 计算通行能力 + 限制 0~100%
+        double capacity = SATURATION_FLOW * totalY * (cycle - totalLostTime) / (double) cycle;
+        capacity = capacity / 20;
+        capacity = Math.max(0, Math.min(100, capacity));
+        capacity = Math.round(capacity * 10) / 10.0;
 
-    public static void main(String[] args) throws Exception {
-        TrafficSignalOptimizer opt = new TrafficSignalOptimizer();
-        JSONDataLoader loader = new JSONDataLoader();
-
-        String roadnet = "D:\\algorithm\\data\\roadnet_4_4.json";
-        List<String> interIds = loader.loadIntersectionIds(roadnet);
-
-        String[] anons = {
-                "D:\\algorithm\\data\\anon_4_4_hangzhou_real.json",
-                "D:\\algorithm\\data\\anon_4_4_hangzhou_real_5734.json",
-                "D:\\algorithm\\data\\anon_4_4_hangzhou_real_5816.json"
-        };
-        Map<String, Integer> roadFlow = loader.loadCombinedFlow(anons);
-
-        List<AlgorithmInput> inputList = new ArrayList<>();
-        List<String> testIds = interIds.size() >= 3 ? interIds.subList(0, 3) : interIds;
-
-        for (String id : testIds) {
-            Map<String, Integer> phaseFlow = new HashMap<>();
-            phaseFlow.put("EAST_WEST_STRAIGHT", roadFlow.getOrDefault("road_4_0", 420));
-            phaseFlow.put("EAST_WEST_LEFT", roadFlow.getOrDefault("road_3_0", 130));
-            phaseFlow.put("NORTH_SOUTH_STRAIGHT", roadFlow.getOrDefault("road_0_4", 550));
-            phaseFlow.put("NORTH_SOUTH_LEFT", roadFlow.getOrDefault("road_0_3", 100));
-
-            AlgorithmInput input = new AlgorithmInput(id, phaseFlow, 15, 120);
-            inputList.add(input);
-        }
-
-        List<AlgorithmOutput> results = opt.batchOptimize(inputList);
-
-        System.out.println("===== 杭州真实路口优化结果 =====");
-        for (AlgorithmOutput out : results) {
-            System.out.println("路口ID：" + out.getIntersectionId());
-            System.out.println("周期：" + out.getCycleLength() + "s");
-            System.out.println("配时：" + out.getTimingPlan());
-            System.out.println("延误：" + out.getAverageDelay() + "s");
-            System.out.println("通行能力：" + out.getCapacity() + " pcu/h");
-            System.out.println("--------------------------------");
-        }
+        return new AlgorithmOutput(intersectionId, cycle, YELLOW_TIME, timingPlan, delay, capacity);
     }
 }
