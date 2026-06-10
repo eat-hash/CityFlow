@@ -10,7 +10,8 @@ public class JSONDataLoader {
         JsonNode root = objectMapper.readTree(new File(roadnetFilePath));
         List<String> intersectionIds = new ArrayList<>();
         for (JsonNode intersectionNode : root.get("intersections")) {
-            intersectionIds.add(intersectionNode.get("id").asText());
+            String interId = intersectionNode.get("id").asText();
+            intersectionIds.add(interId);
         }
         return intersectionIds;
     }
@@ -20,13 +21,10 @@ public class JSONDataLoader {
         Map<String, Integer> roadFlowCount = new HashMap<>();
 
         for (JsonNode vehicleNode : root) {
-            // 关键修复：加 null 判断
-            JsonNode vehicle = vehicleNode.get("vehicle");
-            if (vehicle == null) continue;
-
-            JsonNode routeNode = vehicle.get("route");
-            if (routeNode == null || !routeNode.isArray()) continue;
-
+            JsonNode routeNode = vehicleNode.get("route");
+            if (routeNode == null || !routeNode.isArray()) {
+                continue;
+            }
             for (JsonNode roadNode : routeNode) {
                 String roadId = roadNode.asText();
                 roadFlowCount.put(roadId, roadFlowCount.getOrDefault(roadId, 0) + 1);
@@ -36,13 +34,13 @@ public class JSONDataLoader {
     }
 
     public Map<String, Integer> loadCombinedFlow(String... anonFiles) throws Exception {
-        Map<String, Integer> total = new HashMap<>();
+        Map<String, Integer> totalFlow = new HashMap<>();
         for (String path : anonFiles) {
-            Map<String, Integer> flow = loadSingleFlowFile(path);
-            for (Map.Entry<String, Integer> entry : flow.entrySet()) {
-                total.put(entry.getKey(), total.getOrDefault(entry.getKey(), 0) + entry.getValue());
+            Map<String, Integer> singleFlow = loadSingleFlowFile(path);
+            for (Map.Entry<String, Integer> entry : singleFlow.entrySet()) {
+                totalFlow.put(entry.getKey(), totalFlow.getOrDefault(entry.getKey(), 0) + entry.getValue());
             }
         }
-        return total;
+        return totalFlow;
     }
 }
