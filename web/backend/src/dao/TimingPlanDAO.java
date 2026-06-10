@@ -1,89 +1,61 @@
-package backend.dao;
+package backend.src.dao;
 
-import backend.entity.TimingPlan;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.stereotype.Repository;
-
-import javax.sql.DataSource;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import backend.src.entity.TimingPlan;
+import backend.src.util.JDBCUtil;
+import java.sql.*;
+import java.util.ArrayList;
 import java.util.List;
 
-@Repository
 public class TimingPlanDAO {
 
-    private final JdbcTemplate jdbcTemplate;
-
-    public TimingPlanDAO(DataSource dataSource) {
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    // 查询所有配时方案
+    public List<TimingPlan> listAll() {
+        List<TimingPlan> list = new ArrayList<>();
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            conn = JDBCUtil.getConnection();
+            String sql = "SELECT * FROM timing_plan ORDER BY create_time DESC";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                TimingPlan plan = new TimingPlan();
+                plan.setId(rs.getInt("id"));
+                plan.setName(rs.getString("name"));
+                plan.setIntersectionId(rs.getInt("intersection_id"));
+                plan.setPhaseCount(rs.getInt("phase_count"));
+                plan.setCycle(rs.getInt("cycle"));
+                plan.setMinGreen(rs.getInt("min_green"));
+                plan.setMaxCycle(rs.getInt("max_cycle"));
+                plan.setStatus(rs.getInt("status"));
+                plan.setCreateTime(rs.getTimestamp("create_time"));
+                list.add(plan);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            JDBCUtil.close(rs, pstmt, conn);
+        }
+        return list;
     }
 
-    // 新增配时方案
-    public int insert(TimingPlan plan) {
-        String sql = "INSERT INTO timing_plan(name,intersection_id,phase_count,cycle,min_green,max_cycle,status,create_time) VALUES (?,?,?,?,?,?,?,NOW())";
-        return jdbcTemplate.update(sql,
-                plan.getName(),
-                plan.getIntersectionId(),
-                plan.getPhaseCount(),
-                plan.getCycle(),
-                plan.getMinGreen(),
-                plan.getMaxCycle(),
-                plan.getStatus());
-    }
-
-    // 更新方案
-    public int update(TimingPlan plan) {
-        String sql = "UPDATE timing_plan SET name=?,intersection_id=?,phase_count=?,cycle=?,min_green=?,max_cycle=?,status=? WHERE id=?";
-        return jdbcTemplate.update(sql,
-                plan.getName(),
-                plan.getIntersectionId(),
-                plan.getPhaseCount(),
-                plan.getCycle(),
-                plan.getMinGreen(),
-                plan.getMaxCycle(),
-                plan.getStatus(),
-                plan.getId());
-    }
-
-    // 删除
-    public int deleteById(Integer id) {
-        String sql = "DELETE FROM timing_plan WHERE id=?";
-        return jdbcTemplate.update(sql, id);
-    }
-
-    // 按ID查询
-    public TimingPlan findById(Integer id) {
-        String sql = "SELECT * FROM timing_plan WHERE id=?";
-        return jdbcTemplate.queryForObject(sql, new Object[]{id}, new TimingPlanRowMapper());
-    }
-
-    // 分页查询（优化：只查需要字段、支持索引）
-    public List<TimingPlan> findPage(int page, int size) {
-        String sql = "SELECT * FROM timing_plan ORDER BY create_time DESC LIMIT ?,?";
-        return jdbcTemplate.query(sql, new Object[]{(page - 1) * size, size}, new TimingPlanRowMapper());
-    }
-
-    // 总数
-    public long count() {
-        String sql = "SELECT COUNT(*) FROM timing_plan";
-        return jdbcTemplate.queryForObject(sql, Long.class);
-    }
-
-    private static class TimingPlanRowMapper implements RowMapper<TimingPlan> {
-        @Override
-        public TimingPlan mapRow(ResultSet rs, int rowNum) throws SQLException {
-            TimingPlan p = new TimingPlan();
-            p.setId(rs.getInt("id"));
-            p.setName(rs.getString("name"));
-            p.setIntersectionId(rs.getInt("intersection_id"));
-            p.setPhaseCount(rs.getInt("phase_count"));
-            p.setCycle(rs.getInt("cycle"));
-            p.setMinGreen(rs.getInt("min_green"));
-            p.setMaxCycle(rs.getInt("max_cycle"));
-            p.setStatus(rs.getInt("status"));
-            p.setCreateTime(rs.getTimestamp("create_time"));
-            return p;
+    // 更新方案状态
+    public int updateStatus(int id, int status) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        try {
+            conn = JDBCUtil.getConnection();
+            String sql = "UPDATE timing_plan SET status = ? WHERE id = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, status);
+            pstmt.setInt(2, id);
+            return pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        } finally {
+            JDBCUtil.close(pstmt, conn);
         }
     }
 }

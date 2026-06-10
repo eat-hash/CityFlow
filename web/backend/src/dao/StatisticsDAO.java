@@ -1,35 +1,35 @@
-package backend.dao;
+package backend.src.dao;  // 这里改成你文件实际所在的包
 
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Repository;
-
-import javax.sql.DataSource;
+import backend.src.util.JDBCUtil;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
-@Repository
-public class StatisticsDAO {
+public class StatisticsDAO extends BaseDAO {
 
-    private final JdbcTemplate jdbcTemplate;
+    // 统计各路口车流量
+    public Map<String, Integer> countTrafficByIntersection() {
+        Map<String, Integer> map = new HashMap<>();
+        String sql = "SELECT intersection_id, COUNT(*) AS count FROM traffic_data GROUP BY intersection_id";
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
 
-    public StatisticsDAO(DataSource dataSource) {
-        this.jdbcTemplate = new JdbcTemplate(dataSource);
-    }
-
-    // 全局统计：方案总数、启用数、路口数
-    public Map<String, Object> getGlobalStats() {
-        Map<String, Object> map = new HashMap<>();
-
-        // 方案总数
-        Long totalPlan = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM timing_plan", Long.class);
-        // 启用方案数
-        Long activePlan = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM timing_plan WHERE status=1", Long.class);
-        // 关联路口数（去重）
-        Long totalIntersection = jdbcTemplate.queryForObject("SELECT COUNT(DISTINCT intersection_id) FROM timing_plan", Long.class);
-
-        map.put("totalPlan", totalPlan);
-        map.put("activePlan", activePlan);
-        map.put("totalIntersection", totalIntersection);
+        try {
+            conn = JDBCUtil.getConnection();
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                map.put(rs.getString("intersection_id"), rs.getInt("count"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            JDBCUtil.close(rs, pstmt, conn);
+        }
         return map;
     }
 }

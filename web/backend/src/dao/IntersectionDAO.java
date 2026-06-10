@@ -1,85 +1,58 @@
-package backend.dao;
+package backend.src.dao;
 
-import backend.entity.Intersection;
-import backend.util.JDBCUtil;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import backend.src.entity.Intersection;
+import backend.src.util.JDBCUtil;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class IntersectionDAO {
 
-    // 新增路口
-    public boolean addIntersection(Intersection intersection) {
-        String sql = "INSERT INTO intersection(intersection_id, name, code, region, lane_count) VALUES (?,?,?,?,?)";
-        try (Connection conn = JDBCUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+    public List<Intersection> listAll() {
+        List<Intersection> list = new ArrayList<>();
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            conn = JDBCUtil.getConnection();
+            String sql = "SELECT * FROM intersection";
+            pstmt = conn.prepareStatement(sql);
+            rs = pstmt.executeQuery();
+            while (rs.next()) {
+                Intersection i = new Intersection();
+                i.setIntersectionId(rs.getString("intersection_id"));
+                i.setName(rs.getString("name"));
+                i.setCode(rs.getString("code"));
+                i.setRegion(rs.getString("region"));
+                i.setLaneCount(rs.getInt("lane_count"));
+                list.add(i);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            JDBCUtil.close(rs, pstmt, conn);
+        }
+        return list;
+    }
 
+    public int add(Intersection intersection) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        try {
+            conn = JDBCUtil.getConnection();
+            String sql = "INSERT INTO intersection(intersection_id,name,code,region,lane_count) VALUES(?,?,?,?,?)";
+            pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, intersection.getIntersectionId());
             pstmt.setString(2, intersection.getName());
             pstmt.setString(3, intersection.getCode());
             pstmt.setString(4, intersection.getRegion());
             pstmt.setInt(5, intersection.getLaneCount());
-            return pstmt.executeUpdate() > 0;
-
-        } catch (Exception e) {
+            return pstmt.executeUpdate();
+        } catch (SQLException e) {
             e.printStackTrace();
-            return false;
+            return -1;
+        } finally {
+            JDBCUtil.close(pstmt, conn);
         }
-    }
-
-    // 根据ID查询路口
-    public Intersection getById(String intersectionId) {
-        String sql = "SELECT * FROM intersection WHERE intersection_id=?";
-        try (Connection conn = JDBCUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, intersectionId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                Intersection in = new Intersection();
-                in.setIntersectionId(rs.getString("intersection_id"));
-                in.setName(rs.getString("name"));
-                in.setCode(rs.getString("code"));
-                in.setRegion(rs.getString("region"));
-                in.setLaneCount(rs.getInt("lane_count"));
-                return in;
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    // 分页查询所有路口
-    public List<Intersection> listByPage(int page, int size) {
-        List<Intersection> list = new ArrayList<>();
-        int start = (page - 1) * size;
-        String sql = "SELECT * FROM intersection LIMIT ?,?";
-
-        try (Connection conn = JDBCUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setInt(1, start);
-            pstmt.setInt(2, size);
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                Intersection in = new Intersection();
-                in.setIntersectionId(rs.getString("intersection_id"));
-                in.setName(rs.getString("name"));
-                in.setCode(rs.getString("code"));
-                in.setRegion(rs.getString("region"));
-                in.setLaneCount(rs.getInt("lane_count"));
-                list.add(in);
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return list;
     }
 }
