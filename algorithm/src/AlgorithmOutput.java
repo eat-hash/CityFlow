@@ -1,54 +1,83 @@
 import java.util.Map;
 
+/**
+ * 单路口算法输出实体（严格对齐前端接口字段）
+ */
 public class AlgorithmOutput {
-    private String status;
-    private String message;
-    private String intersectionId;
-    private int cycleLength;
-    private int yellowTime;
-    private Map<String, Integer> timingPlan;
-    private double averageDelay;
+    private String intersection_id;
+    private int cycle_length;
+    private int yellow_time;
+    private Map<String, Integer> timing_plan;
+    private double average_delay;
     private double capacity;
+    private String status;
 
-    // 1. 成功时的6参数构造器（和你TrafficSignalOptimizer里调用的完全匹配）
-    public AlgorithmOutput(
-            String intersectionId,
-            int cycleLength,
-            int yellowTime,
-            Map<String, Integer> timingPlan,
-            double averageDelay,
-            double capacity
-    ) {
-        this.status = "success";
-        this.intersectionId = intersectionId;
-        this.cycleLength = cycleLength;
-        this.yellowTime = yellowTime;
-        this.timingPlan = timingPlan;
-        this.averageDelay = averageDelay;
+    // 成功构造
+    public AlgorithmOutput(String intersectionId, int cycle, int yellowTime,
+                           Map<String, Integer> timingPlan, double delay, double capacity) {
+        this.intersection_id = intersectionId;
+        this.cycle_length = cycle;
+        this.yellow_time = yellowTime;
+        this.timing_plan = timingPlan;
+        this.average_delay = delay;
         this.capacity = capacity;
-        this.message = null;
+        this.status = "success";
     }
 
-    // 2. 失败时的静态工厂方法
-    public static AlgorithmOutput error(String message) {
-        AlgorithmOutput output = new AlgorithmOutput();
-        output.setStatus("error");
-        output.setMessage(message);
-        return output;
+    // getter & setter （JSON序列化必备）
+    public String getIntersection_id() {
+        return intersection_id;
     }
 
-    // 无参构造器（必须有，否则上面的error方法会报错）
-    public AlgorithmOutput() {}
+    public void setIntersection_id(String intersection_id) {
+        this.intersection_id = intersection_id;
+    }
 
-    // Getter & Setter（必须补全，否则测试类调用时会继续报红）
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
-    public String getIntersectionId() { return intersectionId; }
-    public int getCycleLength() { return cycleLength; }
-    public int getYellowTime() { return yellowTime; }
-    public Map<String, Integer> getTimingPlan() { return timingPlan; }
-    public double getAverageDelay() { return averageDelay; }
-    public double getCapacity() { return capacity; }
+    public int getCycle_length() {
+        return cycle_length;
+    }
+
+    public void setCycle_length(int cycle_length) {
+        this.cycle_length = cycle_length;
+    }
+
+    public int getYellow_time() {
+        return yellow_time;
+    }
+
+    public void setYellow_time(int yellow_time) {
+        this.yellow_time = yellow_time;
+    }
+
+    public Map<String, Integer> getTiming_plan() {
+        return timing_plan;
+    }
+
+    public void setTiming_plan(Map<String, Integer> timing_plan) {
+        this.timing_plan = timing_plan;
+    }
+
+    public double getAverage_delay() {
+        return average_delay;
+    }
+
+    public void setAverage_delay(double average_delay) {
+        this.average_delay = average_delay;
+    }
+
+    public double getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(double capacity) {
+        this.capacity = capacity;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }
