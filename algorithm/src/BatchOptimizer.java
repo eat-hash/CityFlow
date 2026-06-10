@@ -1,24 +1,59 @@
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
-/**
- * 第三周新增：批量路口优化器
- * 批量遍历调用单路口算法，解耦批量逻辑
- */
 public class BatchOptimizer {
-    // 复用单路口优化实例
-    private final TrafficSignalOptimizer singleOpt = new TrafficSignalOptimizer();
+    private final TrafficSignalOptimizer singleOpt;
+    private final ExecutorService executor;
 
-    /**
-     * 批量配时计算
-     * @param inputList 批量路口入参
-     * @return 批量优化结果
-     */
+    public BatchOptimizer(TrafficSignalOptimizer optimizer) {
+        this.singleOpt = optimizer;
+        this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    }
+
     public List<AlgorithmOutput> batchOptimize(List<AlgorithmInput> inputList) {
-        List<AlgorithmOutput> resultList = new ArrayList<>(inputList.size());
-        for (AlgorithmInput input : inputList) {
-            resultList.add(singleOpt.computeTimingPlan(input));
+        if (inputList == null || inputList.isEmpty()) {
+            return Collections.emptyList();
         }
-        return resultList;
+
+        // 小批量直接串行
+        if (inputList.size() < 5) {
+            return inputList.stream()
+                    .map(singleOpt::computeTimingPlan)
+                    .collect(Collectors.toList());
+        }
+
+        // 大批量用线程池并行计算
+        try {
+            List<Callable<AlgorithmOutput>> tasks = new ArrayList<>();
+            for (AlgorithmInput input : inputList) {
+                tasks.add(() -> singleOpt.computeTimingPlan(input));
+            }
+
+            return executor.invokeAll(tasks).stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception e) {
+                            throw new RuntimeException("批量任务执行失败", e);
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("批量计算被中断", e);
+        }
+    }
+
+    // 关闭线程池（建议在程序退出时调用，避免资源泄漏）
+    public void shutdown() {
+        if (!executor.isShutdown()) {
+            executor.shutdown();
+        }
     }
 }
